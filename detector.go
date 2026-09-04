@@ -92,16 +92,22 @@ func (d *Detector) DetectBest(b []byte) (r *Result, err error) {
 	return
 }
 
-// DetectAll returns all Results which have non-zero Confidence. The Results are sorted by Confidence in descending order.
+// DetectAll returns all Results which have non-zero Confidence. The Results are
+// sorted by Confidence in descending order. Ties preserve recognizer order.
 func (d *Detector) DetectAll(b []byte) ([]Result, error) {
 	input := newRecognizerInput(b, d.stripTag)
-	outputChan := make(chan recognizerOutput)
-	for _, r := range d.recognizers {
-		go matchHelper(r, input, outputChan)
+	outputChan := make(chan indexedRecognizerOutput)
+	for i, r := range d.recognizers {
+		go matchHelper(i, r, input, outputChan)
 	}
-	outputs := make([]recognizerOutput, 0, len(d.recognizers))
+	allOutputs := make([]recognizerOutput, len(d.recognizers))
 	for i := 0; i < len(d.recognizers); i++ {
 		o := <-outputChan
+		allOutputs[o.index] = o.output
+	}
+
+	outputs := make([]recognizerOutput, 0, len(allOutputs))
+	for _, o := range allOutputs {
 		if o.Confidence > 0 {
 			outputs = append(outputs, o)
 		}
@@ -110,7 +116,7 @@ func (d *Detector) DetectAll(b []byte) ([]Result, error) {
 		return nil, NotDetectedError
 	}
 
-	sort.Sort(recognizerOutputs(outputs))
+	sort.Stable(recognizerOutputs(outputs))
 	dedupOutputs := make([]Result, 0, len(outputs))
 	foundCharsets := make(map[string]struct{}, len(outputs))
 	for _, o := range outputs {
@@ -125,8 +131,13 @@ func (d *Detector) DetectAll(b []byte) ([]Result, error) {
 	return dedupOutputs, nil
 }
 
-func matchHelper(r recognizer, input *recognizerInput, outputChan chan<- recognizerOutput) {
-	outputChan <- r.Match(input)
+type indexedRecognizerOutput struct {
+	index  int
+	output recognizerOutput
+}
+
+func matchHelper(index int, r recognizer, input *recognizerInput, outputChan chan<- indexedRecognizerOutput) {
+	outputChan <- indexedRecognizerOutput{index: index, output: r.Match(input)}
 }
 
 type recognizerOutputs []recognizerOutput
