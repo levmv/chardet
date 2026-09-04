@@ -5,13 +5,15 @@ import (
 )
 
 type recognizer2022 struct {
-	charset string
-	escapes [][]byte
+	charset  string
+	language string
+	escapes  [][]byte
 }
 
 func (r *recognizer2022) Match(input *recognizerInput) (output recognizerOutput) {
 	return recognizerOutput{
 		Charset:    r.charset,
+		Language:   r.language,
 		Confidence: r.matchConfidence(input.input),
 	}
 }
@@ -83,6 +85,7 @@ var escapeSequences_2022CN = [][]byte{
 func newRecognizer_2022JP() *recognizer2022 {
 	return &recognizer2022{
 		"ISO-2022-JP",
+		"ja",
 		escapeSequences_2022JP,
 	}
 }
@@ -90,6 +93,7 @@ func newRecognizer_2022JP() *recognizer2022 {
 func newRecognizer_2022KR() *recognizer2022 {
 	return &recognizer2022{
 		"ISO-2022-KR",
+		"ko",
 		escapeSequences_2022KR,
 	}
 }
@@ -97,6 +101,7 @@ func newRecognizer_2022KR() *recognizer2022 {
 func newRecognizer_2022CN() *recognizer2022 {
 	return &recognizer2022{
 		"ISO-2022-CN",
+		"zh",
 		escapeSequences_2022CN,
 	}
 }
