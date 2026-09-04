@@ -7,4 +7,8 @@ in [ICU](http://icu-project.org/)'s implementation.
 
 ## Documentation and Usage
 
-See [pkgdoc](https://pkg.go.dev/github.com/saintfish/chardet)
+See [pkgdoc](https://pkg.go.dev/github.com/levmv/chardet).
+
+This project is a maintained fork of
+[saintfish/chardet](https://github.com/saintfish/chardet). The original Git
+history and license notices are preserved.
