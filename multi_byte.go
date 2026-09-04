@@ -13,7 +13,7 @@ type recognizerMultiByte struct {
 }
 
 type charDecoder interface {
-	DecodeOneChar([]byte) (c uint16, remain []byte, err error)
+	DecodeOneChar([]byte) (c uint32, remain []byte, err error)
 }
 
 func (r *recognizerMultiByte) Match(input *recognizerInput) (output recognizerOutput) {
@@ -26,7 +26,7 @@ func (r *recognizerMultiByte) Match(input *recognizerInput) (output recognizerOu
 
 func (r *recognizerMultiByte) matchConfidence(input *recognizerInput) int {
 	raw := input.raw
-	var c uint16
+	var c uint32
 	var err error
 	var totalCharCount, badCharCount, singleByteCharCount, doubleByteCharCount, commonCharCount int
 	for c, raw, err = r.decoder.DecodeOneChar(raw); len(raw) > 0; c, raw, err = r.decoder.DecodeOneChar(raw) {
@@ -76,14 +76,14 @@ func (r *recognizerMultiByte) matchConfidence(input *recognizerInput) int {
 	return confidence
 }
 
-func binarySearch(l []uint16, c uint16) bool {
+func binarySearch(l []uint16, c uint32) bool {
 	start := 0
 	end := len(l) - 1
 	for start <= end {
 		mid := (start + end) / 2
-		if c == l[mid] {
+		if c == uint32(l[mid]) {
 			return true
-		} else if c < l[mid] {
+		} else if c < uint32(l[mid]) {
 			end = mid - 1
 		} else {
 			start = mid + 1
@@ -98,12 +98,12 @@ var badCharError = errors.New("Decode a bad char")
 type charDecoder_sjis struct {
 }
 
-func (charDecoder_sjis) DecodeOneChar(input []byte) (c uint16, remain []byte, err error) {
+func (charDecoder_sjis) DecodeOneChar(input []byte) (c uint32, remain []byte, err error) {
 	if len(input) == 0 {
 		return 0, nil, eobError
 	}
 	first := input[0]
-	c = uint16(first)
+	c = uint32(first)
 	remain = input[1:]
 	if first <= 0x7F || (first > 0xA0 && first <= 0xDF) {
 		return
@@ -113,7 +113,7 @@ func (charDecoder_sjis) DecodeOneChar(input []byte) (c uint16, remain []byte, er
 	}
 	second := remain[0]
 	remain = remain[1:]
-	c = c<<8 | uint16(second)
+	c = c<<8 | uint32(second)
 	if (second >= 0x40 && second <= 0x7F) || (second >= 0x80 && second <= 0xFE) {
 	} else {
 		err = badCharError
@@ -142,22 +142,22 @@ func newRecognizer_sjis() *recognizerMultiByte {
 type charDecoder_euc struct {
 }
 
-func (charDecoder_euc) DecodeOneChar(input []byte) (c uint16, remain []byte, err error) {
+func (charDecoder_euc) DecodeOneChar(input []byte) (c uint32, remain []byte, err error) {
 	if len(input) == 0 {
 		return 0, nil, eobError
 	}
 	first := input[0]
 	remain = input[1:]
-	c = uint16(first)
+	c = uint32(first)
 	if first <= 0x8D {
-		return uint16(first), remain, nil
+		return uint32(first), remain, nil
 	}
 	if len(remain) == 0 {
 		return 0, nil, eobError
 	}
 	second := remain[0]
 	remain = remain[1:]
-	c = c<<8 | uint16(second)
+	c = c<<8 | uint32(second)
 	if first >= 0xA1 && first <= 0xFE {
 		if second < 0xA1 {
 			err = badCharError
@@ -176,7 +176,7 @@ func (charDecoder_euc) DecodeOneChar(input []byte) (c uint16, remain []byte, err
 		}
 		third := remain[0]
 		remain = remain[1:]
-		c = c<<0 | uint16(third)
+		c = c<<8 | uint32(third)
 		if third < 0xa1 {
 			err = badCharError
 		}
@@ -231,13 +231,13 @@ func newRecognizer_euc_kr() *recognizerMultiByte {
 type charDecoder_big5 struct {
 }
 
-func (charDecoder_big5) DecodeOneChar(input []byte) (c uint16, remain []byte, err error) {
+func (charDecoder_big5) DecodeOneChar(input []byte) (c uint32, remain []byte, err error) {
 	if len(input) == 0 {
 		return 0, nil, eobError
 	}
 	first := input[0]
 	remain = input[1:]
-	c = uint16(first)
+	c = uint32(first)
 	if first <= 0x7F || first == 0xFF {
 		return
 	}
@@ -246,7 +246,7 @@ func (charDecoder_big5) DecodeOneChar(input []byte) (c uint16, remain []byte, er
 	}
 	second := remain[0]
 	remain = remain[1:]
-	c = c<<8 | uint16(second)
+	c = c<<8 | uint32(second)
 	if second < 0x40 || second == 0x7F || second == 0xFF {
 		err = badCharError
 	}
@@ -278,13 +278,13 @@ func newRecognizer_big5() *recognizerMultiByte {
 type charDecoder_gb_18030 struct {
 }
 
-func (charDecoder_gb_18030) DecodeOneChar(input []byte) (c uint16, remain []byte, err error) {
+func (charDecoder_gb_18030) DecodeOneChar(input []byte) (c uint32, remain []byte, err error) {
 	if len(input) == 0 {
 		return 0, nil, eobError
 	}
 	first := input[0]
 	remain = input[1:]
-	c = uint16(first)
+	c = uint32(first)
 	if first <= 0x80 {
 		return
 	}
@@ -293,7 +293,7 @@ func (charDecoder_gb_18030) DecodeOneChar(input []byte) (c uint16, remain []byte
 	}
 	second := remain[0]
 	remain = remain[1:]
-	c = c<<8 | uint16(second)
+	c = c<<8 | uint32(second)
 	if first >= 0x81 && first <= 0xFE {
 		if (second >= 0x40 && second <= 0x7E) || (second >= 0x80 && second <= 0xFE) {
 			return
@@ -312,7 +312,7 @@ func (charDecoder_gb_18030) DecodeOneChar(input []byte) (c uint16, remain []byte
 				fourth := remain[0]
 				remain = remain[1:]
 				if fourth >= 0x30 && fourth <= 0x39 {
-					c = c<<16 | uint16(third)<<8 | uint16(fourth)
+					c = c<<16 | uint32(third)<<8 | uint32(fourth)
 					return
 				}
 			}
