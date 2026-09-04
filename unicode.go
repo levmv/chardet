@@ -82,7 +82,7 @@ func (r *recognizerUtf32) Match(input *recognizerInput) (output recognizerOutput
 	hasBom := bytes.HasPrefix(input.raw, r.bom)
 	var numValid, numInvalid uint32
 	for b := input.raw; len(b) >= 4; b = b[4:] {
-		if c := r.decodeChar(b); c >= 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
+		if c := r.decodeChar(b); c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
 			numInvalid++
 		} else {
 			numValid++
