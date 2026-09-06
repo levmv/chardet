@@ -1,46 +1,40 @@
 # chardet
 
-chardet is library to automatically detect
-[charset](http://en.wikipedia.org/wiki/Character_encoding) of texts for [Go
-programming language](http://golang.org/). It's based on the algorithm and data
-in [ICU](http://icu-project.org/)'s implementation.
-
-## Documentation and Usage
-
-See [pkgdoc](https://pkg.go.dev/github.com/levmv/chardet).
+chardet detects character encodings for Go, using algorithms and data from
+[ICU](http://icu-project.org/).
 
 This project is a maintained fork of
-[saintfish/chardet](https://github.com/saintfish/chardet). The original Git
-history and license notices are preserved.
+[saintfish/chardet](https://github.com/saintfish/chardet).
+
+## Usage
+
+Pass the original text bytes in `data` (`[]byte`):
+
+```go
+result, err := chardet.NewTextDetector().DetectBest(data)
+if err != nil {
+	return err
+}
+
+fmt.Printf("%s (confidence %d)\n", result.Charset, result.Confidence)
+```
+
+Use `NewHtmlDetector` for HTML input. See the
+[API documentation](https://pkg.go.dev/github.com/levmv/chardet) for details.
 
 ## Detection behavior
 
 Each result has a confidence score from 1 to 100. `DetectAll` returns candidates
 in descending confidence order; `DetectBest` returns the first candidate.
 Confidence is a heuristic ranking score, not a probability. Scores need not add
-up to 100, and detection does not generally guarantee that every byte can be
-decoded.
+up to 100.
 
-The same bytes may be valid in several encodings. For example, ASCII text can
-be decoded identically as UTF-8, Windows-1251, or Windows-1252. A high score
-does not prove which encoding was originally used.
-
-### UTF-8
+Short inputs are often ambiguous: for example, ASCII text is compatible with
+several encodings. A high score does not prove the original encoding, and
+detection generally does not guarantee that the entire input can be decoded.
 
 For UTF-8, confidence 100 requires a complete, valid byte slice. If you pass
 only a sample of a larger input, this requirement applies only to that sample.
 
-An incomplete final character is tolerated when preceded by complete non-ASCII
-characters or a UTF-8 BOM, with confidence capped at 80. This allows detection
-of samples cut inside a character. Malformed bytes reduce confidence; partially
-damaged text may still be returned as a candidate.
-
-These examples show the confidence of the UTF-8 candidate, which may not be
-the highest-ranked result:
-
-| Input (Go expression) | UTF-8 confidence | Explanation |
-| --- | --- | --- |
-| `[]byte("Hello, world!")` | 10 | Valid ASCII, compatible with many encodings. |
-| `[]byte("é")` | 80 | One complete character; 80 does not imply truncation. |
-| `[]byte("こんにちは")` | 100 | Several complete non-ASCII characters. |
-| `[]byte("こんにちは\xe2\x82")` | 80 | Complete text followed by an incomplete `€` character. |
+UTF-16 can be detected without a byte order mark (BOM), but short texts and
+texts with few or no ASCII characters may go undetected.
