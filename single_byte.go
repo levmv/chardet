@@ -722,7 +722,7 @@ var ngrams_windows_1251 = [64]uint32{
 func newRecognizer_windows_1251() *recognizerSingleByte {
 	return &recognizerSingleByte{
 		charset:  "windows-1251",
-		language: "ar",
+		language: "ru",
 		charMap:  &charMap_windows_1251,
 		ngram:    &ngrams_windows_1251,
 	}

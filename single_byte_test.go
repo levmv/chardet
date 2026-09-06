@@ -7,6 +7,21 @@ import (
 	"github.com/levmv/chardet"
 )
 
+func TestWindows1251Language(t *testing.T) {
+	// "Это небольшой русский текст о книгах и чтении." encoded as Windows-1251.
+	input, err := hex.DecodeString("ddf2ee20ede5e1eeebfcf8eee920f0f3f1f1eae8e920f2e5eaf1f220ee20eaede8e3e0f520e820f7f2e5ede8e82e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := chardet.NewTextDetector().DetectBest(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Charset != "windows-1251" || result.Language != "ru" {
+		t.Fatalf("DetectBest() = %s/%s, want windows-1251/ru", result.Charset, result.Language)
+	}
+}
+
 func TestISO88592Detection(t *testing.T) {
 	tests := []struct {
 		name     string

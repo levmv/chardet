@@ -10,7 +10,7 @@ import (
 type Result struct {
 	// IANA name of the detected charset.
 	Charset string
-	// IANA name of the detected language. It may be empty for some charsets.
+	// Language code, such as "en". It may be empty for some charsets.
 	Language string
 	// Confidence of the Result. Scale from 1 to 100. The bigger, the more confident.
 	Confidence int
