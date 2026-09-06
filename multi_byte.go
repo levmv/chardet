@@ -29,7 +29,8 @@ func (r *recognizerMultiByte) matchConfidence(input *recognizerInput) int {
 	var c uint32
 	var err error
 	var totalCharCount, badCharCount, singleByteCharCount, doubleByteCharCount, commonCharCount int
-	for c, raw, err = r.decoder.DecodeOneChar(raw); len(raw) > 0; c, raw, err = r.decoder.DecodeOneChar(raw) {
+	for len(raw) > 0 {
+		c, raw, err = r.decoder.DecodeOneChar(raw)
 		totalCharCount++
 		if err != nil {
 			badCharCount++
