@@ -26,43 +26,40 @@ func newRecognizerInput(raw []byte, stripTag bool) *recognizerInput {
 	}
 }
 
-func mayStripInput(raw []byte, stripTag bool) (out []byte, stripped bool) {
+func mayStripInput(raw []byte, stripTag bool) ([]byte, bool) {
 	const inputBufferSize = 8192
-	out = make([]byte, 0, inputBufferSize)
+	limit := len(raw)
+	if limit > inputBufferSize {
+		limit = inputBufferSize
+	}
+	if !stripTag {
+		return raw[:limit], false
+	}
+	out := make([]byte, 0, limit)
 	var badTags, openTags int32
-	var inMarkup bool = false
-	stripped = false
-	if stripTag {
-		stripped = true
-		for _, c := range raw {
-			if c == '<' {
-				if inMarkup {
-					badTags += 1
-				}
-				inMarkup = true
-				openTags += 1
+	var inMarkup bool
+	for _, c := range raw {
+		if c == '<' {
+			if inMarkup {
+				badTags += 1
 			}
-			if !inMarkup {
-				out = append(out, c)
-				if len(out) >= inputBufferSize {
-					break
-				}
+			inMarkup = true
+			openTags += 1
+		}
+		if !inMarkup {
+			out = append(out, c)
+			if len(out) >= inputBufferSize {
+				break
 			}
-			if c == '>' {
-				inMarkup = false
-			}
+		}
+		if c == '>' {
+			inMarkup = false
 		}
 	}
 	if openTags < 5 || openTags/5 < badTags || (len(out) < 100 && len(raw) > 600) {
-		limit := len(raw)
-		if limit > inputBufferSize {
-			limit = inputBufferSize
-		}
-		out = make([]byte, limit)
-		copy(out, raw[:limit])
-		stripped = false
+		return raw[:limit], false
 	}
-	return
+	return out, true
 }
 
 func computeByteStats(input []byte) []int {

@@ -33,8 +33,8 @@ Short inputs are often ambiguous: for example, ASCII text is compatible with
 several encodings. A high score does not prove the original encoding, and
 detection generally does not guarantee that the entire input can be decoded.
 
-For UTF-8, confidence 100 requires a complete, valid byte slice. If you pass
-only a sample of a larger input, this requirement applies only to that sample.
+For UTF-8 and UTF-32, confidence 100 requires a complete, valid byte slice. If you
+pass only a sample of a larger input, this requirement applies only to that sample.
 
 UTF-16 can be detected without a byte order mark (BOM), but short texts and
 texts with few or no ASCII characters may go undetected.

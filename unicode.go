@@ -134,9 +134,10 @@ func utf16ASCIIByte(b byte) bool {
 }
 
 type recognizerUtf32 struct {
-	name       string
-	bom        []byte
-	decodeChar func(input []byte) uint32
+	name         string
+	bom          []byte
+	decodeChar   func(input []byte) uint32
+	littleEndian bool
 }
 
 func decodeUtf32be(input []byte) uint32 {
@@ -152,6 +153,7 @@ func newRecognizer_utf32be() *recognizerUtf32 {
 		"UTF-32BE",
 		utf32beBom,
 		decodeUtf32be,
+		false,
 	}
 }
 
@@ -160,6 +162,7 @@ func newRecognizer_utf32le() *recognizerUtf32 {
 		"UTF-32LE",
 		utf32leBom,
 		decodeUtf32le,
+		true,
 	}
 }
 
@@ -169,12 +172,17 @@ func (r *recognizerUtf32) Match(input *recognizerInput) (output recognizerOutput
 	}
 	hasBom := bytes.HasPrefix(input.raw, r.bom)
 	var numValid, numInvalid uint32
-	for b := input.raw; len(b) >= 4; b = b[4:] {
+	b := input.raw
+	for ; len(b) >= 4; b = b[4:] {
 		if c := r.decodeChar(b); c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF) {
 			numInvalid++
 		} else {
 			numValid++
 		}
+	}
+	if len(b) > 0 && !r.validPrefix(b) {
+		// A partial code unit can already be impossible to complete.
+		numInvalid++
 	}
 	if hasBom && numInvalid == 0 {
 		output.Confidence = 100
@@ -187,5 +195,32 @@ func (r *recognizerUtf32) Match(input *recognizerInput) (output recognizerOutput
 	} else if numValid > numInvalid*10 {
 		output.Confidence = 25
 	}
+	if len(b) > 0 && output.Confidence > 80 {
+		output.Confidence = 80
+	}
 	return
+}
+
+// validPrefix reports whether 1–3 trailing bytes can complete a Unicode scalar.
+func (r *recognizerUtf32) validPrefix(b []byte) bool {
+	var plane, high byte
+	if r.littleEndian {
+		if len(b) < 3 {
+			// Any low 16 bits can be completed in a supplementary plane.
+			return true
+		}
+		plane, high = b[2], b[1]
+	} else {
+		if b[0] != 0 {
+			return false
+		}
+		if len(b) < 2 {
+			return true
+		}
+		plane = b[1]
+		if len(b) == 3 {
+			high = b[2]
+		}
+	}
+	return plane <= 0x10 && (plane != 0 || high < 0xd8 || high > 0xdf)
 }

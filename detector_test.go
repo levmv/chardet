@@ -34,28 +34,36 @@ func TestDetector(t *testing.T) {
 
 	textDetector := chardet.NewTextDetector()
 	htmlDetector := chardet.NewHtmlDetector()
-	buffer := make([]byte, 32<<10)
 	for _, d := range data {
-		f, err := os.Open(filepath.Join("testdata", d.File))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-		size, _ := io.ReadFull(f, buffer)
-		input := buffer[:size]
-		var detector = textDetector
-		if d.IsHtml {
-			detector = htmlDetector
-		}
-		result, err := detector.DetectBest(input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if result.Charset != d.Charset {
-			t.Errorf("Expected charset %s, actual %s", d.Charset, result.Charset)
-		}
-		if result.Language != d.Language {
-			t.Errorf("Expected language %s, actual %s", d.Language, result.Language)
-		}
+		d := d
+		t.Run(d.File, func(t *testing.T) {
+			t.Parallel()
+			buffer := make([]byte, 32<<10)
+			f, err := os.Open(filepath.Join("testdata", d.File))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			size, _ := io.ReadFull(f, buffer)
+			input := buffer[:size]
+			var detector = textDetector
+			if d.IsHtml {
+				detector = htmlDetector
+			}
+			result, err := detector.DetectBest(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Charset != d.Charset {
+				t.Errorf("Expected charset %s, actual %s", d.Charset, result.Charset)
+			}
+			if result.Language != d.Language {
+				t.Errorf("Expected language %s, actual %s", d.Language, result.Language)
+			}
+			all, err := detector.DetectAll(input)
+			if err != nil || len(all) == 0 || *result != all[0] {
+				t.Fatalf("DetectBest() = %v, DetectAll() = %v, %v", result, all, err)
+			}
+		})
 	}
 }

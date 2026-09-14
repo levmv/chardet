@@ -1,0 +1,34 @@
+name: Go
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.18.x', oldstable, stable]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Check formatting
+        if: matrix.go == 'stable'
+        run: |
+          unformatted=$(gofmt -l ./*.go)
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      - name: Test
+        if: matrix.go != 'stable'
+        run: go test ./...
+      - name: Test with race detector
+        if: matrix.go == 'stable'
+        run: go test -race ./...

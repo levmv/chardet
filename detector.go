@@ -83,23 +83,30 @@ var (
 	NotDetectedError = errors.New("Charset not detected.")
 )
 
-// DetectBest returns the Result with highest Confidence.
-func (d *Detector) DetectBest(b []byte) (r *Result, err error) {
-	var all []Result
-	if all, err = d.DetectAll(b); err == nil {
-		r = &all[0]
+// DetectBest returns the Result with highest Confidence. Ties preserve
+// recognizer order, as in DetectAll.
+func (d *Detector) DetectBest(b []byte) (*Result, error) {
+	outputChan := d.match(newRecognizerInput(b, d.stripTag))
+	var best Result
+	bestIndex := len(d.recognizers)
+	for i := 0; i < len(d.recognizers); i++ {
+		o := <-outputChan
+		if o.output.Confidence > best.Confidence ||
+			(o.output.Confidence == best.Confidence && o.index < bestIndex) {
+			best = Result(o.output)
+			bestIndex = o.index
+		}
 	}
-	return
+	if best.Confidence == 0 {
+		return nil, NotDetectedError
+	}
+	return &best, nil
 }
 
 // DetectAll returns all Results which have non-zero Confidence. The Results are
 // sorted by Confidence in descending order. Ties preserve recognizer order.
 func (d *Detector) DetectAll(b []byte) ([]Result, error) {
-	input := newRecognizerInput(b, d.stripTag)
-	outputChan := make(chan indexedRecognizerOutput)
-	for i, r := range d.recognizers {
-		go matchHelper(i, r, input, outputChan)
-	}
+	outputChan := d.match(newRecognizerInput(b, d.stripTag))
 	allOutputs := make([]recognizerOutput, len(d.recognizers))
 	for i := 0; i < len(d.recognizers); i++ {
 		o := <-outputChan
@@ -129,6 +136,14 @@ func (d *Detector) DetectAll(b []byte) ([]Result, error) {
 		return nil, NotDetectedError
 	}
 	return dedupOutputs, nil
+}
+
+func (d *Detector) match(input *recognizerInput) <-chan indexedRecognizerOutput {
+	outputChan := make(chan indexedRecognizerOutput)
+	for i, r := range d.recognizers {
+		go matchHelper(i, r, input, outputChan)
+	}
+	return outputChan
 }
 
 type indexedRecognizerOutput struct {
