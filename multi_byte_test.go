@@ -1,9 +1,64 @@
 package chardet
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
+
+func TestMultiByteDecoderByteRanges(t *testing.T) {
+	tests := []struct {
+		name    string
+		decoder charDecoder
+		valid   [][]byte
+		invalid [][]byte
+	}{
+		{"Shift_JIS", charDecoder_sjis{},
+			[][]byte{{0x80}, {0x81, 0x7e}, {0x81, 0x80}, {0x81, 0xfc}, {0xfc, 0x40}},
+			[][]byte{{0xa0, 0x40}, {0xfd, 0x40}, {0x82, 0x7f}, {0x82, 0xfd}}},
+		{"EUC-JP", newRecognizer_euc_jp().decoder,
+			[][]byte{{0xa1, 0xfe}, {0x8e, 0xdf}, {0x8f, 0xa7, 0xfe}},
+			[][]byte{{0x80}, {0xa0, 0xa1}, {0xff, 0xa1}, {0xa4, 0xff}, {0x8e, 0xe0},
+				{0x8f, 0xa0, 0xa1}, {0x8f, 0xff, 0xa1}, {0x8f, 0xa1, 0xff}}},
+		{"EUC-KR", newRecognizer_euc_kr().decoder,
+			[][]byte{{0xb0, 0xa1}},
+			[][]byte{{0x8e, 0xa1}, {0x8f, 0xa1, 0xa1}}},
+		{"Big5", charDecoder_big5{},
+			[][]byte{{0xa1, 0x7e}, {0xa1, 0xa1}, {0xa1, 0xfe}},
+			[][]byte{{0x80, 0x40}, {0xff, 0x40}, {0xa4, 0x7f}, {0xa4, 0xa0}}},
+		{"GB18030", charDecoder_gb_18030{},
+			[][]byte{{0xfe, 0x40}},
+			[][]byte{{0xff, 0x40}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, raw := range tt.valid {
+				if _, _, err := tt.decoder.DecodeOneChar(raw); err != nil {
+					t.Errorf("DecodeOneChar(%x) rejected a valid character: %v", raw, err)
+				}
+			}
+			for _, raw := range tt.invalid {
+				if _, _, err := tt.decoder.DecodeOneChar(raw); err == nil {
+					t.Errorf("DecodeOneChar(%x) accepted invalid bytes", raw)
+				}
+			}
+		})
+	}
+}
+
+func TestMultiByteInvalidBytesReduceConfidence(t *testing.T) {
+	// All multibyte recognizers share the scoring code. Shift_JIS exercises
+	// the formerly accepted 82 7F sequence reaching that code as an error.
+	r := newRecognizer_sjis()
+	clean := bytes.Repeat([]byte{0x82, 0xa0}, 50)
+	if got := r.Match(newRecognizerInput(clean, false)).Confidence; got != 100 {
+		t.Fatalf("clean text confidence = %d, want 100", got)
+	}
+	damaged := append(clean, bytes.Repeat([]byte{0x82, 0x7f}, 10)...)
+	if got := r.Match(newRecognizerInput(damaged, false)).Confidence; got != 0 {
+		t.Fatalf("damaged text confidence = %d, want 0", got)
+	}
+}
 
 func TestMultiByteConfidenceAtEndOfInput(t *testing.T) {
 	type confidenceCase struct {

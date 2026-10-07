@@ -106,8 +106,11 @@ func (charDecoder_sjis) DecodeOneChar(input []byte) (c uint32, remain []byte, er
 	first := input[0]
 	c = uint32(first)
 	remain = input[1:]
-	if first <= 0x7F || (first > 0xA0 && first <= 0xDF) {
+	if first <= 0x80 || (first >= 0xA1 && first <= 0xDF) {
 		return
+	}
+	if (first > 0x9F && first < 0xE0) || first > 0xFC {
+		return c, remain, badCharError
 	}
 	if len(remain) == 0 {
 		return c, remain, badCharError
@@ -115,8 +118,7 @@ func (charDecoder_sjis) DecodeOneChar(input []byte) (c uint32, remain []byte, er
 	second := remain[0]
 	remain = remain[1:]
 	c = c<<8 | uint32(second)
-	if (second >= 0x40 && second <= 0x7F) || (second >= 0x80 && second <= 0xFE) {
-	} else {
+	if second < 0x40 || second == 0x7F || second > 0xFC {
 		err = badCharError
 	}
 	return
@@ -141,17 +143,24 @@ func newRecognizer_sjis() *recognizerMultiByte {
 }
 
 type charDecoder_euc struct {
+	korean bool
 }
 
-func (charDecoder_euc) DecodeOneChar(input []byte) (c uint32, remain []byte, err error) {
+func (r charDecoder_euc) DecodeOneChar(input []byte) (c uint32, remain []byte, err error) {
 	if len(input) == 0 {
 		return 0, nil, eobError
 	}
 	first := input[0]
 	remain = input[1:]
 	c = uint32(first)
-	if first <= 0x8D {
-		return uint32(first), remain, nil
+	if first <= 0x7F {
+		return
+	}
+	if first < 0xA1 || first > 0xFE {
+		// Only EUC-JP uses single-shift prefixes for kana and JIS X 0212.
+		if r.korean || (first != 0x8E && first != 0x8F) {
+			return c, remain, badCharError
+		}
 	}
 	if len(remain) == 0 {
 		return 0, nil, eobError
@@ -159,14 +168,11 @@ func (charDecoder_euc) DecodeOneChar(input []byte) (c uint32, remain []byte, err
 	second := remain[0]
 	remain = remain[1:]
 	c = c<<8 | uint32(second)
-	if first >= 0xA1 && first <= 0xFE {
-		if second < 0xA1 {
-			err = badCharError
-		}
-		return
+	if second < 0xA1 || second > 0xFE {
+		return c, remain, badCharError
 	}
 	if first == 0x8E {
-		if second < 0xA1 {
+		if second > 0xDF {
 			err = badCharError
 		}
 		return
@@ -178,7 +184,7 @@ func (charDecoder_euc) DecodeOneChar(input []byte) (c uint32, remain []byte, err
 		third := remain[0]
 		remain = remain[1:]
 		c = c<<8 | uint32(third)
-		if third < 0xa1 {
+		if third < 0xA1 || third > 0xFE {
 			err = badCharError
 		}
 	}
@@ -224,7 +230,7 @@ func newRecognizer_euc_kr() *recognizerMultiByte {
 	return &recognizerMultiByte{
 		"EUC-KR",
 		"ko",
-		charDecoder_euc{},
+		charDecoder_euc{korean: true},
 		commonChars_euc_kr,
 	}
 }
@@ -239,8 +245,11 @@ func (charDecoder_big5) DecodeOneChar(input []byte) (c uint32, remain []byte, er
 	first := input[0]
 	remain = input[1:]
 	c = uint32(first)
-	if first <= 0x7F || first == 0xFF {
+	if first <= 0x7F {
 		return
+	}
+	if first < 0x81 || first > 0xFE {
+		return c, remain, badCharError
 	}
 	if len(remain) == 0 {
 		return c, nil, eobError
@@ -248,7 +257,7 @@ func (charDecoder_big5) DecodeOneChar(input []byte) (c uint32, remain []byte, er
 	second := remain[0]
 	remain = remain[1:]
 	c = c<<8 | uint32(second)
-	if second < 0x40 || second == 0x7F || second == 0xFF {
+	if second < 0x40 || (second > 0x7E && second < 0xA1) || second > 0xFE {
 		err = badCharError
 	}
 	return
@@ -289,37 +298,38 @@ func (charDecoder_gb_18030) DecodeOneChar(input []byte) (c uint32, remain []byte
 	if first <= 0x80 {
 		return
 	}
+	if first > 0xFE {
+		return c, remain, badCharError
+	}
 	if len(remain) == 0 {
 		return 0, nil, eobError
 	}
 	second := remain[0]
 	remain = remain[1:]
 	c = c<<8 | uint32(second)
-	if first >= 0x81 && first <= 0xFE {
-		if (second >= 0x40 && second <= 0x7E) || (second >= 0x80 && second <= 0xFE) {
-			return
-		}
+	if (second >= 0x40 && second <= 0x7E) || (second >= 0x80 && second <= 0xFE) {
+		return
+	}
 
-		if second >= 0x30 && second <= 0x39 {
+	if second >= 0x30 && second <= 0x39 {
+		if len(remain) == 0 {
+			return 0, nil, eobError
+		}
+		third := remain[0]
+		remain = remain[1:]
+		if third >= 0x81 && third <= 0xFE {
 			if len(remain) == 0 {
 				return 0, nil, eobError
 			}
-			third := remain[0]
+			fourth := remain[0]
 			remain = remain[1:]
-			if third >= 0x81 && third <= 0xFE {
-				if len(remain) == 0 {
-					return 0, nil, eobError
-				}
-				fourth := remain[0]
-				remain = remain[1:]
-				if fourth >= 0x30 && fourth <= 0x39 {
-					c = c<<16 | uint32(third)<<8 | uint32(fourth)
-					return
-				}
+			if fourth >= 0x30 && fourth <= 0x39 {
+				c = c<<16 | uint32(third)<<8 | uint32(fourth)
+				return
 			}
 		}
-		err = badCharError
 	}
+	err = badCharError
 	return
 }
 

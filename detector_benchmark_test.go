@@ -19,7 +19,8 @@ func BenchmarkDetector(b *testing.B) {
 			unit []byte
 		}{
 			{"ASCII", []byte("This is a short text about books. ")},
-			{"UTF8", []byte("Café, Ελληνικά, 日本語, 😀. ")},
+			// A 32-byte unit keeps every sample complete, exercising the UTF-8 fast path.
+			{"UTF8", []byte("Café, 日本語, 😀. Hello!  ")},
 			{"UTF32", []byte{0, 0, 0x4e, 0x16}},
 			{"Legacy", []byte("Un caf\xe9 avec une cr\xe8me br\xfbl\xe9e. ")},
 			{"Markup", []byte("<p><b>Un caf\xe9 avec une cr\xe8me br\xfbl\xe9e.</b></p> ")},

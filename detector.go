@@ -86,10 +86,23 @@ var (
 // DetectBest returns the Result with highest Confidence. Ties preserve
 // recognizer order, as in DetectAll.
 func (d *Detector) DetectBest(b []byte) (*Result, error) {
-	outputChan := d.match(newRecognizerInput(b, d.stripTag))
 	var best Result
 	bestIndex := len(d.recognizers)
-	for i := 0; i < len(d.recognizers); i++ {
+	first := 0
+	if len(d.recognizers) > 0 {
+		if r, ok := d.recognizers[0].(*recognizerUtf8); ok {
+			// UTF-8 only needs raw bytes. A maximum score from the first
+			// recognizer wins even ties, without preparing input or workers.
+			best = Result(r.Match(&recognizerInput{raw: b}))
+			if best.Confidence == 100 {
+				return &best, nil
+			}
+			bestIndex = 0
+			first = 1
+		}
+	}
+	outputChan := d.match(newRecognizerInput(b, d.stripTag), first)
+	for i := first; i < len(d.recognizers); i++ {
 		o := <-outputChan
 		if o.output.Confidence > best.Confidence ||
 			(o.output.Confidence == best.Confidence && o.index < bestIndex) {
@@ -106,7 +119,7 @@ func (d *Detector) DetectBest(b []byte) (*Result, error) {
 // DetectAll returns all Results which have non-zero Confidence. The Results are
 // sorted by Confidence in descending order. Ties preserve recognizer order.
 func (d *Detector) DetectAll(b []byte) ([]Result, error) {
-	outputChan := d.match(newRecognizerInput(b, d.stripTag))
+	outputChan := d.match(newRecognizerInput(b, d.stripTag), 0)
 	allOutputs := make([]recognizerOutput, len(d.recognizers))
 	for i := 0; i < len(d.recognizers); i++ {
 		o := <-outputChan
@@ -138,10 +151,10 @@ func (d *Detector) DetectAll(b []byte) ([]Result, error) {
 	return dedupOutputs, nil
 }
 
-func (d *Detector) match(input *recognizerInput) <-chan indexedRecognizerOutput {
+func (d *Detector) match(input *recognizerInput, first int) <-chan indexedRecognizerOutput {
 	outputChan := make(chan indexedRecognizerOutput)
-	for i, r := range d.recognizers {
-		go matchHelper(i, r, input, outputChan)
+	for i := first; i < len(d.recognizers); i++ {
+		go matchHelper(i, d.recognizers[i], input, outputChan)
 	}
 	return outputChan
 }
